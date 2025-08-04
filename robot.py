@@ -7,7 +7,7 @@ import numpy
 # from sbot import GPIOPinMode
 
 ### "is_competition" in metadata.json started true
-
+### left motor is 1, right is 0
 
 # print(comp.is_competition)
 
