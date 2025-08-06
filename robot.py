@@ -9,16 +9,18 @@ from sbot import arduino, motors, utils
 3. the easy turns (and it's basically the same as the initial getting to the wall anyway)
 """
 
-#CONSTANTS - have no clue yet for any of these values really. and lol i lowkey forgot how global variables work. also do we need right and back sensors?
-MIN_FRONT, MAX_FRONT = 250, 400
+#CONSTANTS - have no clue yet for any of these values really. also do we need right and back sensors?
+MIN_FRONT, MAX_FRONT = 350, 400
 MIN_LEFT, MAX_LEFT = 200, 300
+MIN_SPEED_L, MIN_SPEED_R = 0.05, 0.05
+K = 0.1
 
-#GLOBAL VARS - you cant just initialise stuff in python so their defaults can be -1
+#GLOBAL VARS - defaults can be -1
 actual_front = -1
-actual_left_1 = -1  #left-front
-actual_left_2 = -1  #left-back - imma use L1 as "left" for most of the code. will solve the problem of the pins tomorrow
+actual_left = -1  #left-front
+# actual_left_2 = -1 
 error_front = actual_front - MIN_FRONT
-error_left = actual_left_1 - MIN_LEFT
+error_left = actual_left - MIN_LEFT
 
 
 #MOVEMENT METHODS
@@ -26,60 +28,78 @@ def set_motors(left, right):
     motors.set_power(0, left)
     motors.set_power(1, right)
 
-def get_to_wall(): #initial getting to the wall from starting position
-    global actual_front
-    set_motors(0, 0.28) #turn 90 degrees left (probably)
-    utils.sleep(1)
+def proportional_control(error):
+    left_motor_speed = MIN_SPEED_L - (K*error)
+    right_motor_speed = MIN_SPEED_R + (K*error)
+    return (left_motor_speed, right_motor_speed)
 
-    actual_front = arduino.measure_ultrasound_distance(2, 3)
-    while actual_front >= MIN_LEFT:
-        set_motors(0.25, 0.25)
-        utils.sleep(0.5) #dont know how long to set the arg in sleep() to yet
-        actual_front = arduino.measure_ultrasound_distance(2, 3)
-    turn_right()
+# def get_to_wall(): #initial getting to the wall from starting position
+#     global actual_front
+
+#     # motor_speed_tuple = proportional_control(error_left)
+#     # left_motor_speed = motor_speed_tuple[0]
+#     # right_motor_speed = motor_speed_tuple[1]
+
+#     set_motors(0, 0.28) #turn 90 degrees left on the spot
+#     utils.sleep(1)
+
+#     actual_front = arduino.measure_ultrasound_distance(2, 3)
+#     while actual_front >= MIN_LEFT:
+#         set_motors(MIN_SPEED_L, MIN_SPEED_R)
+#         utils.sleep(1) #dont know how long to set the arg in sleep() to yet
+#         actual_front = arduino.measure_ultrasound_distance(2, 3)
+        
+#     turn_right()
+#     return
   
-def turn_right():  #aka for the easy turns
+def turn_right():  #for the easy turns
     set_motors(0, 0) #stop
     utils.sleep(0.5)
-    set_motors(0.28, 0) #turn right
+    set_motors(MIN_SPEED_L+0.28, MIN_SPEED_R) #turn right
     utils.sleep(0.5) 
     return
         
-def turn_left():   #aka for the hard turns
+def turn_left():   #for the hard turns
     set_motors(0, 0) #stop
     utils.sleep(0.5)
-    set_motors(0, 0.28) #turn left
+    set_motors(MIN_SPEED_L, MIN_SPEED_R+0.28) #turn right
     utils.sleep(0.5)
     return
 
-def proportional_control(error_left):
-    #left motor speed = min speed -
-    #...
-    #return a tuple with the motor speeds
-    return
     
      
 
-#MAIN LOOP
-get_to_wall() #i guess this is outside the main loop lol
+#GET TO WALL
+actual_front = arduino.measure_ultrasound_distance(2, 3)
+actual_left = arduino.measure_ultrasound_distance(4, 5)
+error_front = actual_front - MIN_FRONT
+error_left = actual_left - MIN_LEFT
+
+motor_speed_tuple = proportional_control(error_left)
+left_motor_speed = motor_speed_tuple[0]
+right_motor_speed = motor_speed_tuple[1]
+get_to_wall() 
+
+#MAIN LOOP AFTER THAT
 while True:
     actual_front = arduino.measure_ultrasound_distance(2, 3)
-    actual_left_1, actual_left_2 = arduino.measure_ultrasound_distance(4, 5), arduino.measure_ultrasound_distance(8, 9)
+    actual_left = arduino.measure_ultrasound_distance(4, 5)
     error_front = actual_front - MIN_FRONT
-    error_left = actual_left_1 - MIN_LEFT
-    
-    set_motors(0.2,0.2) #0.2 are placeholders, in reality this depends on the proportional control
+    error_left = actual_left - MIN_LEFT
 
+    motor_speed_tuple = proportional_control(error_left)
+    left_motor_speed = motor_speed_tuple[0]
+    right_motor_speed = motor_speed_tuple[1]
+    
+    set_motors(left_motor_speed, right_motor_speed) 
     
     #CHECK FOR TURNS
     #1. closed-off turn
-    if (MIN_LEFT-25) <= actual_front <= (MIN_LEFT+25) and (MIN_LEFT-25) <= actual_left_1 <= (MIN_LEFT+25): #is 25 too precise for ultrasound? probably
+    if (MIN_LEFT-25) <= actual_front <= (MIN_LEFT+25) and (MIN_LEFT-25) <= actual_left <= (MIN_LEFT+25): #is 25 too precise for ultrasound? probably
         turn_right()
     #2. more open turn
-    elif actual_left_1 <= 200: #300 seems about right - except oops on turn 2 and 7 this means we'll go straight through the cans. err 200 maybe?
+    elif actual_left <= 200: #high risk of hitting cans on turn 2 and 7 
         turn_left()
-    #CHECK WE'RE ON TRACK
-        
     
 
     
