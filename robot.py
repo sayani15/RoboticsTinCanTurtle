@@ -1,8 +1,195 @@
-# from sbot import arduino, motors, utils
+### "is_competition" in metadata.json started true
+### left motor is 1, right is 0
+### for left 2, trigger 6 echo 7
+### worst-case starting distance between car and wall is 510mm
 
-# ### "is_competition" in metadata.json started true
-# ### left motor is 1, right is 0
-# ### for left 2, trigger 6 echo 7
+from sbot import arduino, motors, utils
+from sbot import leds, Colour
+
+#GLOBALS
+#constants
+MIN_SPEED_L, MIN_SPEED_R = 0.25, 0.22 #have been tested on actual robot
+MIN_LEFT_F, MIN_LEFT_B = 180, 180
+MIN_FRONT = 180
+K = 0 #only used in proportional_control(error)
+
+#vars
+actual_front = arduino.measure_ultrasound_distance(2, 3)
+actual_left_F = arduino.measure_ultrasound_distance(4, 5)
+actual_left_B = arduino.measure_ultrasound_distance(6, 7)
+error_left = actual_left_F - MIN_LEFT_F 
+
+
+#MOVEMENT METHODS
+def set_motors(left, right):
+    motors.set_power(1, -left)
+    motors.set_power(0, -right)
+
+def proportional_control(error):
+    left_motor_speed = MIN_SPEED_L - (K*error)
+    right_motor_speed = MIN_SPEED_R + (K*error)
+    return (left_motor_speed, right_motor_speed)
+
+  
+def turn_right():  #for the easy turns
+    set_motors(0, 0) #stop
+    utils.sleep(0.5)
+    set_motors(+0.28, 0) #turn right
+    utils.sleep(1) #theoretically we can  double speed and half time (and same for turn left)
+    return
+        
+def turn_left():   #for the hard turns
+    set_motors(0, 0) #stop
+    utils.sleep(0.5)
+    set_motors(0, +0.28) #turn left
+    utils.sleep(1)
+    return
+
+def go_straight(error, t): #whenever it's used proportional_control(error) must be used to generate the values for speed
+    speed_tuple = proportional_control(error)
+    set_motors(speed_tuple[0], speed_tuple[1])
+    utils.sleep(t)
+
+def clear_wall_enough_to_turn():
+    global actual_left_B
+    actual_left_B = arduino.measure_ultrasound_distance(6, 7)  
+    while actual_left_B < MIN_LEFT_B*3:
+        set_motors(MIN_SPEED_L, MIN_SPEED_R)
+        utils.sleep(0.5)
+        actual_left_B = arduino.measure_ultrasound_distance(6, 7)  
+    return 
+
+        
+
+set_motors(MIN_SPEED_L, MIN_SPEED_R) #ideally this should be go_straight(), but we dont yet know the constant 
+
+while True:
+    actual_front = arduino.measure_ultrasound_distance(2, 3)
+    actual_left_F = arduino.measure_ultrasound_distance(4, 5)
+    actual_left_B = arduino.measure_ultrasound_distance(6, 7)
+    error_left = actual_left_F - MIN_LEFT_F 
+
+    #go straight, adjusting path 
+    # go_straight(error_left, 2) #no clue about t
+
+    #use below code to test logic. after that, add it proportional control and find K
+    set_motors(MIN_SPEED_L, MIN_SPEED_R)
+    utils.sleep(2)
+
+    #CHECKS
+    #right
+    if 150 < actual_left_F < 250 and 150 < actual_front < 250:
+        turn_right()
+    #left
+    # if actual_left_F > 1200 and actual_left_B < 450:
+    if actual_left_F >= MIN_LEFT_F*3: #actual_left_B+500:
+        clear_wall_enough_to_turn()
+        turn_left()
+        #use the code below if using proportion control (go_straight()) messes up the turn
+        set_motors(MIN_SPEED_L, MIN_SPEED_R) 
+        utils.sleep(1) 
+    #straight - honestly, forgot condition
+    #if 
+
+
+
+
+###TEST CODE TO FIND K
+from sbot import arduino, motors, utils
+
+#GLOBALS
+#constants
+MIN_SPEED_L, MIN_SPEED_R = 0.25, 0.22 #have been tested on actual robot
+MIN_LEFT_F, MIN_LEFT_B = 180, 180
+# MIN_FRONT = 180
+K = 0 
+
+#vars
+# actual_front = arduino.measure_ultrasound_distance(2, 3)
+actual_left_F = arduino.measure_ultrasound_distance(4, 5)
+actual_left_B = arduino.measure_ultrasound_distance(6, 7)
+error_left = actual_left_F - MIN_LEFT_F 
+
+
+def set_motors(left, right):
+    motors.set_power(1, -left)
+    motors.set_power(0, -right)
+
+
+def proportional_control(error):
+    left_motor_speed = MIN_SPEED_L - (K*error)
+    right_motor_speed = MIN_SPEED_R + (K*error)
+    return (left_motor_speed, right_motor_speed)
+
+def go_straight(error, t): #whenever it's used proportional_control(error) must be used to generate the values for speed
+    speed_tuple = proportional_control(error)
+    set_motors(speed_tuple[0], speed_tuple[1])
+    utils.sleep(t)
+
+
+while True:
+    actual_left_F = arduino.measure_ultrasound_distance(4, 5)
+    actual_left_B = arduino.measure_ultrasound_distance(6, 7)
+    error_left = actual_left_F - MIN_LEFT_F 
+
+    go_straight(error_left, 0.1)
+
+
+###
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+    # if actual_left >= 250:
+    #     print(f"actual left ={actual_left}. bigger than 250")
+    #     leds.set_colour(0, Colour.RED)
+    #     set_motors(MIN_SPEED_L, MIN_SPEED_R)
+    #     print("have gone straight")
+    #     utils.sleep(0.5)
+    # if actual_left < 250:
+    #     print(f"actual left={actual_left}. smaller than 250")
+    #     leds.set_colour(0, Colour.GREEN)
+    #     set_motors(0,0)
+    #     utils.sleep(1.5)
+    #     set_motors(0,0.28) #turn left
+    #     print("have turned left")
+    #     leds.set_colour(0, Colour.BLUE)
+    #     utils.sleep(1.00) #probably time for 90 degree turn
+
+
+
+
 
 
 # #CONSTANTS - have no clue yet for any of these values really. also do we need right and back sensors?
@@ -107,92 +294,3 @@
 # #        utils.sleep(1)
 # #        print("turned left")
 
-
-
-
-from sbot import arduino, motors, utils
-from sbot import leds, Colour
-### "is_competition" in metadata.json started true
-### left motor is 1, right is 0
-
-#GLOBALS
-#constants
-MIN_SPEED_L, MIN_SPEED_R = 0.25, 0.22 #have been tested on actual robot
-MIN_LEFT_F, MIN_LEFT_B = 180, 180
-MIN_FRONT = 180
-K = 0 #only used in proportional_control(error)
-
-#vars
-actual_front = arduino.measure_ultrasound_distance(2, 3)
-actual_left_F = arduino.measure_ultrasound_distance(4, 5)
-actual_left_B = arduino.measure_ultrasound_distance(6, 7)
-error_left = actual_left_F - MIN_LEFT_F 
-
-
-#MOVEMENT METHODS
-def set_motors(left, right):
-    motors.set_power(1, -left)
-    motors.set_power(0, -right)
-
-def proportional_control(error):
-    left_motor_speed = MIN_SPEED_L - (K*error)
-    right_motor_speed = MIN_SPEED_R + (K*error)
-    return (left_motor_speed, right_motor_speed)
-
-  
-def turn_right():  #for the easy turns
-    set_motors(0, 0) #stop
-    utils.sleep(0.5)
-    set_motors(+0.28, 0) #turn right
-    utils.sleep(1) #theoretically we can  double speed and half time (and same for turn left)
-    return
-        
-def turn_left():   #for the hard turns
-    set_motors(0, 0) #stop
-    utils.sleep(0.5)
-    set_motors(0, +0.28) #turn left
-    utils.sleep(1)
-    return
-
-def go_straight(error, t): #whenever it's used proportional_control(error) must be used to generate the values for speed
-    speed_tuple = proportional_control(error)
-    set_motors(speed_tuple[0], speed_tuple[1])
-    utils.sleep(t)
-
-
-
-set_motors(MIN_SPEED_L, MIN_SPEED_R)
-
-while True:
-    actual_front = arduino.measure_ultrasound_distance(2, 3)
-    actual_left_F = arduino.measure_ultrasound_distance(4, 5)
-    actual_left_B = arduino.measure_ultrasound_distance(6, 7)
-    error_left = actual_left_F - MIN_LEFT_F 
-
-    go_straight()
-
-    #right
-    if 150 < actual_left_F < 250 and 150 < actual_front < 250:
-        turn_right()
-    #left
-    if actual_left_F > 1200 and actual_left_B < 450:
-        set_motors(MIN_SPEED_L, MIN_SPEED_R) #to clear both left sensors from wall it was just tracing
-        utils.sleep(1) #needs testing 
-        turn_left()
-
-    #straight
-    if actual_left >= 250:
-        print(f"actual left ={actual_left}. bigger than 250")
-        leds.set_colour(0, Colour.RED)
-        set_motors(MIN_SPEED_L, MIN_SPEED_R)
-        print("have gone straight")
-        utils.sleep(0.5)
-    if actual_left < 250:
-        print(f"actual left={actual_left}. smaller than 250")
-        leds.set_colour(0, Colour.GREEN)
-        set_motors(0,0)
-        utils.sleep(1.5)
-        set_motors(0,0.28) #turn left
-        print("have turned left")
-        leds.set_colour(0, Colour.BLUE)
-        utils.sleep(1.00) #probably time for 90 degree turn
